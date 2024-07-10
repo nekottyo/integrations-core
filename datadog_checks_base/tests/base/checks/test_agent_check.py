@@ -541,6 +541,74 @@ class TestServiceChecks:
         aggregator.assert_service_check('service_check', status=AgentCheck.OK)
 
 
+class TestLogSubmission:
+    def test_checkpoint(self, datadog_agent):
+        check = AgentCheck('check_name', {}, [{}])
+        check.check_id = 'test'
+
+        check.send_log({'message': 'foo'}, checkpoint='checkpoint_data1')
+        check.send_log({'message': 'bar'}, checkpoint='checkpoint_data2')
+        check.send_log({'message': 'baz'})
+
+        datadog_agent.assert_logs(
+            check.check_id,
+            [
+                {'message': 'foo'},
+                {'message': 'bar'},
+                {'message': 'baz'},
+            ],
+        )
+        assert check.get_log_checkpoint() == 'checkpoint_data2'
+
+    def test_no_checkpoint(self, datadog_agent):
+        check = AgentCheck('check_name', {}, [{}])
+        check.check_id = 'test'
+
+        check.send_log({'message': 'foo'})
+        check.send_log({'message': 'bar'})
+        check.send_log({'message': 'baz'})
+
+        datadog_agent.assert_logs(
+            check.check_id,
+            [
+                {'message': 'foo'},
+                {'message': 'bar'},
+                {'message': 'baz'},
+            ],
+        )
+        assert check.get_log_checkpoint() == ''
+
+    def test_tags(self, datadog_agent):
+        check = AgentCheck('check_name', {}, [{'tags': ['foo:bar', 'baz:qux']}])
+        check.check_id = 'test'
+
+        check.send_log({'message': 'foo'})
+        check.send_log({'message': 'bar', 'ddtags': 'bar:baz'})
+        check.send_log({'message': 'baz'})
+
+        datadog_agent.assert_logs(
+            check.check_id,
+            [
+                {'message': 'foo', 'ddtags': 'baz:qux,foo:bar'},
+                {'message': 'bar', 'ddtags': 'bar:baz'},
+                {'message': 'baz', 'ddtags': 'baz:qux,foo:bar'},
+            ],
+        )
+
+
+class TestLogsEnabledDetection:
+    def test_default(self, datadog_agent):
+        check = AgentCheck('check_name', {}, [{}])
+
+        assert check.logs_enabled is False
+
+    def test_enabled(self, datadog_agent):
+        check = AgentCheck('check_name', {}, [{}])
+        datadog_agent._config['logs_enabled'] = True
+
+        assert check.logs_enabled is True
+
+
 class TestTags:
     def test_default_string(self):
         check = AgentCheck()
