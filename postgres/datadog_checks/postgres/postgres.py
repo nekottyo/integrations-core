@@ -152,7 +152,7 @@ class PostgreSql(AgentCheck):
                 "All metrics will be gathered from global view, and autodiscovery will not run."
             )
             return None
-        
+
         discovery = PostgresAutodiscovery(
             self,
             self._config.discovery_config.get('global_view_db', 'postgres'),
